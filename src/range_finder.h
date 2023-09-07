@@ -14,7 +14,7 @@ float rc_alpha = 0.2f;
 
 int sample_interval = 1000;
 
-float threshold_min, threshold_max;
+int threshold_min, threshold_max;
 bool infer_open_close_status = false;
 
 SR04 range_finder(ECHO_PIN, TRIGGER_PIN);
@@ -34,7 +34,9 @@ void sample_loop(void*) {
     }
 
     filtered_distance = range_finder.Distance();
+    // Serial.println(filtered_distance);
     while (1) {
+        // Serial.println(filtered_distance);
         filtered_distance += (range_finder.Distance() - filtered_distance) * rc_alpha;
         vTaskDelay(sample_interval / portTICK_PERIOD_MS);
     }

@@ -1,12 +1,17 @@
 #include <WiFi.h>
-#include <WiFiManager.h>
 #include <Arduino.h>
 #include "mqtt.h"
 
 #define RESET_PIN 0
-WiFiManager wm;
 
 TaskHandle_t wifi_reconnect_th, mqtt_loop_th;
+
+char gateway[16];
+char static_ip[16];
+char dns[16];
+char subnet[16];
+char wifi_ssid[50];
+char wifi_psw[20];
 
 void wifi_check_reconnect_loop(void*) {
 
@@ -37,44 +42,42 @@ void setup() {
         vTaskDelay(50 / portTICK_PERIOD_MS);
     }
 
-    WiFi.mode(WIFI_STA);
-
-    wm.setConfigPortalTimeout(1200);
-    // wm.setDebugOutput(false);
-
-    WiFiManagerParameter mqtt_broker_ip_textfield("broker_ip", "Broker IP", "", 15);
-    WiFiManagerParameter mqtt_broker_port_textfield("broker_port", "Broker port", "1883", 5);
-    WiFiManagerParameter mqtt_broker_device_name_textfield("mqtt_device_name", "Device name", "Warden of Garage Door", 30);
-    WiFiManagerParameter mqtt_broker_device_id_textfield("mqtt_device_id", "Device ID", "warden_of_garage_door", 30);
-    WiFiManagerParameter mqtt_broker_username_textfield("username", "Username", "", 30);
-    WiFiManagerParameter mqtt_broker_password_textfield("password", "Password", "", 30);
-
-    wm.addParameter(&mqtt_broker_ip_textfield);
-    wm.addParameter(&mqtt_broker_port_textfield);
-    wm.addParameter(&mqtt_broker_device_name_textfield);
-    wm.addParameter(&mqtt_broker_device_id_textfield);
-    wm.addParameter(&mqtt_broker_username_textfield);
-    wm.addParameter(&mqtt_broker_password_textfield);
-
-    Serial.println("Finishing Config, starting wifi manager");
-    
-    bool res = wm.autoConnect("WardenOfTheGarageDoor", "wardenpass");
-
-    if (!res) {
-        Serial.println("wifi fail to config, restart");
+    StaticJsonDocument<2048> device_config;
+    if (!load_config(device_config)) {
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
         ESP.restart();
     }
 
-    strcpy(mqtt_broker, mqtt_broker_ip_textfield.getValue());
-    mqtt_port = atoi(mqtt_broker_port_textfield.getValue());
-    strcpy(device_name, mqtt_broker_device_name_textfield.getValue());
-    strcpy(device_id, mqtt_broker_device_id_textfield.getValue());
-    strcpy(username, mqtt_broker_username_textfield.getValue());
-    strcpy(password, mqtt_broker_password_textfield.getValue());
+    strcpy(wifi_ssid, device_config["ssid"]);
+    strcpy(wifi_psw, device_config["password"]);
 
-    topic_prefix  = "device/";
-    topic_prefix  += mqtt_broker_device_id_textfield.getValue();
-    topic_prefix  = "/";
+    strcpy(static_ip, device_config["ip"]);
+    strcpy(gateway, device_config["gateway"]);
+    strcpy(dns, device_config["dns"]);
+    strcpy(subnet, device_config["subnet"]);
+    strcpy(mqtt_broker, device_config["broker"]);
+    strcpy(password, device_config["psw"]);
+    mqtt_port = device_config["port"].as<int32_t>();
+
+    Serial.println(wifi_ssid);
+    Serial.println(wifi_psw);
+    Serial.println(static_ip);
+    Serial.println(gateway);
+    Serial.println(dns);
+    Serial.println(subnet);
+    Serial.println(mqtt_broker);
+    Serial.println(password);
+    Serial.println(mqtt_port);
+
+    IPAddress ip_static_ip, ip_subnet, ip_dns, ip_gateway;
+    if (parse_ip_addr(static_ip, ip_static_ip) && parse_ip_addr(subnet, ip_subnet) 
+        && parse_ip_addr(dns, ip_dns) && parse_ip_addr(gateway, ip_gateway)) {
+        WiFi.config(ip_static_ip, ip_gateway, ip_subnet, ip_dns);
+    }
+
+    WiFi.disconnect();
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(wifi_ssid, wifi_psw);
     
 
     xTaskCreatePinnedToCore(
@@ -106,27 +109,12 @@ void setup() {
         &sample_loop_th,
         app_cpu
     );
-    Serial.println("Creating all the x task");
-
-    
+    vTaskDelete(NULL);
 
 }
 
 void loop() {
-    // Serial.println("monitor reset in a loop");
-    if (digitalRead(RESET_PIN) == LOW) {
-        Serial.println("reset trigger");
-        for (unsigned short i = 0; i < 10; i++) { // signal where reset is triggered
-            digitalWrite(BUILTIN_LED, HIGH);
-            vTaskDelay(50 / portTICK_PERIOD_MS);
-            digitalWrite(BUILTIN_LED, LOW);
-            vTaskDelay(50 / portTICK_PERIOD_MS);
-        }
-        wm.resetSettings();
-        ESP.restart();
-    }
 
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
 }
 
 
