@@ -7,39 +7,28 @@
 #define RELAY_SIGNAL_PIN 16
 
 TaskHandle_t relay_auto_off_th;
-int param_duration;
-bool initialized = false;
+int param_duration = 0;
 
-void initialize() {
+static SemaphoreHandle_t relay_auto_off_sem_binary;
+
+void switch_off_relay_task(void*) {
+    while (1) {
+        if (xSemaphoreTake(relay_auto_off_sem_binary, portMAX_DELAY) == pdTRUE) {
+            vTaskDelay(param_duration / portTICK_PERIOD_MS);
+            digitalWrite(RELAY_SIGNAL_PIN, LOW);
+        }
+    }
+}
+
+void initialize_relay() {
     pinMode(RELAY_SIGNAL_PIN, OUTPUT);
-    initialized = true;
-}
+    relay_auto_off_sem_binary = xSemaphoreCreateBinary();
 
-void switch_off_relay() {
-    digitalWrite(RELAY_SIGNAL_PIN, LOW);
-}
-
-
-void switch_off_relay_task(void* param) {
-    int* duration = (int*) param;
-    vTaskDelay((*duration) / portTICK_PERIOD_MS);
-    switch_off_relay();
-    vTaskDelete(NULL);
-}
-
-
-void switch_on_relay(int duration) {
-
-    if (!initialized) initialize();
-    digitalWrite(RELAY_SIGNAL_PIN, HIGH);
-
-
-    param_duration = duration;
     xTaskCreatePinnedToCore(
         &switch_off_relay_task,
         "Relay Task",
         2048,
-        (void*)&param_duration,
+        NULL,
         1,
         &relay_auto_off_th,
         app_cpu
@@ -47,7 +36,11 @@ void switch_on_relay(int duration) {
 }
 
 
+void switch_on_relay(int duration) {
+    param_duration = duration;
+    digitalWrite(RELAY_SIGNAL_PIN, HIGH);
+    xSemaphoreGive(relay_auto_off_sem_binary);
 
-
+}
 
 #endif

@@ -26,9 +26,9 @@ String topic_prefix = "device/warden_of_garage_door/";
 const char* user = "warden_of_the_garage_door";
 const char* name = "Warden of the Garage Door";
 
-bool should_publish = true;
+volatile bool should_publish = true;
 unsigned long prev = 0, now = 0;
-unsigned int publish_interval = 10000;
+volatile unsigned int publish_interval = 10000;
 
 void callback(char* topic, byte* payload, unsigned int length) {
     payload_buffer.clear();

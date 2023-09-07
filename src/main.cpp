@@ -33,6 +33,7 @@ void wifi_check_reconnect_loop(void*) {
 void setup() { 
     pinMode(RESET_PIN, INPUT_PULLUP);
     pinMode(BUILTIN_LED, OUTPUT);
+    initialize_relay();
     Serial.begin(115200);
 
     for (unsigned short i = 0; i < 10; i++) { // signal where reset is triggered
